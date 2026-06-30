@@ -19,21 +19,29 @@ from PIL import Image, ImageDraw, ImageFont
 
 app = FastAPI()
 
-FONT_PATH       = "DejaVuSans-Bold.ttf"
-TEXT_COLOR      = (15, 40, 90)   # dark navy — matches DonorFlow brand
-FONT_SIZE_RATIO = 0.068          # slightly larger so quoted text reads boldly
-LINE_GAP_RATIO  = 0.022
-SIDE_MARGIN_RATIO = 0.10         # keeps text away from template edges
+FONT_PATH        = "DejaVuSans-Bold.ttf"
+TEXT_COLOR       = (15, 40, 90)   # dark navy
+FONT_SIZE_RATIO  = 0.068
+LINE_GAP_RATIO   = 0.025
+SIDE_MARGIN_RATIO = 0.10
+# Text block lives between 35% and 72% of image height
+# — below the logo zone, above the bottom pill/CTA zone
+TOP_ZONE    = 0.35
+BOTTOM_ZONE = 0.72
 
 
 def overlay_text(img: Image.Image, text: str) -> Image.Image:
     img = img.convert("RGB")
     w, h = img.size
 
-    font_size     = max(int(w * FONT_SIZE_RATIO), 28)
-    line_gap      = int(h * LINE_GAP_RATIO)
-    side_margin   = int(w * SIDE_MARGIN_RATIO)
+    font_size      = max(int(w * FONT_SIZE_RATIO), 28)
+    line_gap       = int(h * LINE_GAP_RATIO)
+    side_margin    = int(w * SIDE_MARGIN_RATIO)
     max_text_width = w - (2 * side_margin)
+
+    # Ensure quote marks are present
+    text = text.strip().strip('"').strip('\u201c\u201d')
+    text = f'\u201c{text}\u201d'   # wrap in proper curly quotes " … "
 
     try:
         font = ImageFont.truetype(FONT_PATH, font_size)
@@ -57,7 +65,7 @@ def overlay_text(img: Image.Image, text: str) -> Image.Image:
     if current:
         lines.append(current)
 
-    # Measure each line
+    # Measure lines
     line_heights, line_widths = [], []
     for line in lines:
         bbox = draw.textbbox((0, 0), line, font=font)
@@ -66,9 +74,11 @@ def overlay_text(img: Image.Image, text: str) -> Image.Image:
 
     total_h = sum(line_heights) + (len(lines) - 1) * line_gap
 
-    # Vertically centered in the usable image area (top 75% — avoid bottom pill/logo zone)
-    usable_h = h * 0.72
-    y = max((usable_h - total_h) / 2, side_margin)
+    # Center the block within the safe zone (TOP_ZONE to BOTTOM_ZONE)
+    zone_top    = h * TOP_ZONE
+    zone_bottom = h * BOTTOM_ZONE
+    zone_h      = zone_bottom - zone_top
+    y = zone_top + (zone_h - total_h) / 2
 
     # Draw dark navy text — no outline, no backdrop
     for i, line in enumerate(lines):
