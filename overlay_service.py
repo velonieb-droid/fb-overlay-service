@@ -1,8 +1,7 @@
 """
 Image Text Overlay Microservice
 Deploy to Render, Railway, or any host with Python.
-n8n (cloud) calls this via HTTP Request node using multipart/form-data,
-since Drive files are private and can't be fetched by URL.
+n8n (cloud) calls this via HTTP Request node using multipart/form-data.
 
 POST /overlay
 Form fields:
@@ -13,7 +12,6 @@ Response: PNG image bytes (binary)
 """
 
 import io
-import textwrap
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
@@ -21,25 +19,20 @@ from PIL import Image, ImageDraw, ImageFont
 
 app = FastAPI()
 
-FONT_PATH = "DejaVuSans-Bold.ttf"  # bundle this font file alongside the script (see notes below)
-
-# Sized relative to the image so it looks right at any resolution.
-FONT_SIZE_RATIO = 0.055       # font size = 5.5% of image width
-LINE_GAP_RATIO = 0.018        # gap between wrapped lines
-BOTTOM_MARGIN_RATIO = 0.20    # keep clear of bottom 20% (avoids logos/CTAs/pills)
-SIDE_MARGIN_RATIO = 0.08      # horizontal safe margin on each side
-BACKDROP_PADDING_RATIO = 0.025
+FONT_PATH       = "DejaVuSans-Bold.ttf"
+TEXT_COLOR      = (15, 40, 90)   # dark navy — matches DonorFlow brand
+FONT_SIZE_RATIO = 0.068          # slightly larger so quoted text reads boldly
+LINE_GAP_RATIO  = 0.022
+SIDE_MARGIN_RATIO = 0.10         # keeps text away from template edges
 
 
 def overlay_text(img: Image.Image, text: str) -> Image.Image:
     img = img.convert("RGB")
     w, h = img.size
 
-    font_size = max(int(w * FONT_SIZE_RATIO), 24)
-    line_gap = int(h * LINE_GAP_RATIO)
-    bottom_margin = int(h * BOTTOM_MARGIN_RATIO)
-    side_margin = int(w * SIDE_MARGIN_RATIO)
-    backdrop_pad = int(h * BACKDROP_PADDING_RATIO)
+    font_size     = max(int(w * FONT_SIZE_RATIO), 28)
+    line_gap      = int(h * LINE_GAP_RATIO)
+    side_margin   = int(w * SIDE_MARGIN_RATIO)
     max_text_width = w - (2 * side_margin)
 
     try:
@@ -49,13 +42,13 @@ def overlay_text(img: Image.Image, text: str) -> Image.Image:
 
     draw = ImageDraw.Draw(img)
 
-    # Wrap based on actual pixel width, not a fixed character count.
+    # Pixel-accurate word wrap
     words = text.split()
     lines = []
     current = ""
     for word in words:
         trial = (current + " " + word).strip()
-        bbox = draw.textbbox((0, 0), trial, font=font)
+        bbox  = draw.textbbox((0, 0), trial, font=font)
         if bbox[2] - bbox[0] <= max_text_width or not current:
             current = trial
         else:
@@ -64,8 +57,8 @@ def overlay_text(img: Image.Image, text: str) -> Image.Image:
     if current:
         lines.append(current)
 
-    line_heights = []
-    line_widths = []
+    # Measure each line
+    line_heights, line_widths = [], []
     for line in lines:
         bbox = draw.textbbox((0, 0), line, font=font)
         line_widths.append(bbox[2] - bbox[0])
@@ -73,18 +66,14 @@ def overlay_text(img: Image.Image, text: str) -> Image.Image:
 
     total_h = sum(line_heights) + (len(lines) - 1) * line_gap
 
-    # Vertically center the text block in the image overall.
-    block_top = (h - total_h) / 2
-    y = max(block_top, side_margin)
+    # Vertically centered in the usable image area (top 75% — avoid bottom pill/logo zone)
+    usable_h = h * 0.72
+    y = max((usable_h - total_h) / 2, side_margin)
 
+    # Draw dark navy text — no outline, no backdrop
     for i, line in enumerate(lines):
         x = (w - line_widths[i]) / 2
-        outline_w = max(font_size // 28, 1)
-        for dx in range(-outline_w, outline_w + 1):
-            for dy in range(-outline_w, outline_w + 1):
-                if dx or dy:
-                    draw.text((x + dx, y + dy), line, font=font, fill="black")
-        draw.text((x, y), line, font=font, fill="white")
+        draw.text((x, y), line, font=font, fill=TEXT_COLOR)
         y += line_heights[i] + line_gap
 
     return img
