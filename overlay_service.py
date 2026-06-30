@@ -22,23 +22,48 @@ from PIL import Image, ImageDraw, ImageFont
 app = FastAPI()
 
 FONT_PATH = "DejaVuSans-Bold.ttf"  # bundle this font file alongside the script (see notes below)
-FONT_SIZE = 64
-MAX_CHARS_PER_LINE = 28  # adjust based on font size / image width
+
+# Sized relative to the image so it looks right at any resolution.
+FONT_SIZE_RATIO = 0.055       # font size = 5.5% of image width
+LINE_GAP_RATIO = 0.018        # gap between wrapped lines
+BOTTOM_MARGIN_RATIO = 0.12    # keep clear of bottom 12% (avoids logos/CTAs/pills)
+SIDE_MARGIN_RATIO = 0.08      # horizontal safe margin on each side
+BACKDROP_PADDING_RATIO = 0.025
 
 
 def overlay_text(img: Image.Image, text: str) -> Image.Image:
-    img = img.convert("RGB")
-    draw = ImageDraw.Draw(img)
+    img = img.convert("RGBA")
+    w, h = img.size
+
+    font_size = max(int(w * FONT_SIZE_RATIO), 24)
+    line_gap = int(h * LINE_GAP_RATIO)
+    bottom_margin = int(h * BOTTOM_MARGIN_RATIO)
+    side_margin = int(w * SIDE_MARGIN_RATIO)
+    backdrop_pad = int(h * BACKDROP_PADDING_RATIO)
+    max_text_width = w - (2 * side_margin)
 
     try:
-        font = ImageFont.truetype(FONT_PATH, FONT_SIZE)
+        font = ImageFont.truetype(FONT_PATH, font_size)
     except OSError:
         font = ImageFont.load_default()
 
-    # Wrap long captions so they don't run off the image
-    lines = textwrap.wrap(text, width=MAX_CHARS_PER_LINE)
+    draw = ImageDraw.Draw(img)
 
-    # Measure total block height to vertically position near bottom
+    # Wrap based on actual pixel width, not a fixed character count.
+    words = text.split()
+    lines = []
+    current = ""
+    for word in words:
+        trial = (current + " " + word).strip()
+        bbox = draw.textbbox((0, 0), trial, font=font)
+        if bbox[2] - bbox[0] <= max_text_width or not current:
+            current = trial
+        else:
+            lines.append(current)
+            current = word
+    if current:
+        lines.append(current)
+
     line_heights = []
     line_widths = []
     for line in lines:
@@ -46,18 +71,36 @@ def overlay_text(img: Image.Image, text: str) -> Image.Image:
         line_widths.append(bbox[2] - bbox[0])
         line_heights.append(bbox[3] - bbox[1])
 
-    total_h = sum(line_heights) + (len(lines) - 1) * 12
-    y = img.height - total_h - 80
+    total_h = sum(line_heights) + (len(lines) - 1) * line_gap
+
+    block_bottom = h - bottom_margin
+    block_top = block_bottom - total_h
+    y = max(block_top, side_margin)
+
+    max_line_width = max(line_widths) if line_widths else 0
+    backdrop_box = [
+        (w - max_line_width) / 2 - backdrop_pad * 2,
+        y - backdrop_pad,
+        (w + max_line_width) / 2 + backdrop_pad * 2,
+        y + total_h + backdrop_pad,
+    ]
+    overlay_layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    overlay_draw = ImageDraw.Draw(overlay_layer)
+    overlay_draw.rounded_rectangle(backdrop_box, radius=backdrop_pad, fill=(0, 0, 0, 110))
+    img = Image.alpha_composite(img, overlay_layer)
+    draw = ImageDraw.Draw(img)
 
     for i, line in enumerate(lines):
-        x = (img.width - line_widths[i]) / 2
-        # outline for readability
-        for dx, dy in [(-2, 0), (2, 0), (0, -2), (0, 2), (-2, -2), (2, 2), (-2, 2), (2, -2)]:
-            draw.text((x + dx, y + dy), line, font=font, fill="black")
+        x = (w - line_widths[i]) / 2
+        outline_w = max(font_size // 28, 1)
+        for dx in range(-outline_w, outline_w + 1):
+            for dy in range(-outline_w, outline_w + 1):
+                if dx or dy:
+                    draw.text((x + dx, y + dy), line, font=font, fill="black")
         draw.text((x, y), line, font=font, fill="white")
-        y += line_heights[i] + 12
+        y += line_heights[i] + line_gap
 
-    return img
+    return img.convert("RGB")
 
 
 @app.post("/overlay")
