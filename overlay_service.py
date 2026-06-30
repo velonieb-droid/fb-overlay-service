@@ -32,7 +32,7 @@ BACKDROP_PADDING_RATIO = 0.025
 
 
 def overlay_text(img: Image.Image, text: str) -> Image.Image:
-    img = img.convert("RGBA")
+    img = img.convert("RGB")
     w, h = img.size
 
     font_size = max(int(w * FONT_SIZE_RATIO), 24)
@@ -73,22 +73,9 @@ def overlay_text(img: Image.Image, text: str) -> Image.Image:
 
     total_h = sum(line_heights) + (len(lines) - 1) * line_gap
 
-    block_bottom = h - bottom_margin
-    block_top = block_bottom - total_h
+    # Vertically center the text block in the image overall.
+    block_top = (h - total_h) / 2
     y = max(block_top, side_margin)
-
-    max_line_width = max(line_widths) if line_widths else 0
-    backdrop_box = [
-        (w - max_line_width) / 2 - backdrop_pad * 2,
-        y - backdrop_pad,
-        (w + max_line_width) / 2 + backdrop_pad * 2,
-        y + total_h + backdrop_pad,
-    ]
-    overlay_layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
-    overlay_draw = ImageDraw.Draw(overlay_layer)
-    overlay_draw.rounded_rectangle(backdrop_box, radius=backdrop_pad, fill=(0, 0, 0, 110))
-    img = Image.alpha_composite(img, overlay_layer)
-    draw = ImageDraw.Draw(img)
 
     for i, line in enumerate(lines):
         x = (w - line_widths[i]) / 2
@@ -100,7 +87,7 @@ def overlay_text(img: Image.Image, text: str) -> Image.Image:
         draw.text((x, y), line, font=font, fill="white")
         y += line_heights[i] + line_gap
 
-    return img.convert("RGB")
+    return img
 
 
 @app.post("/overlay")
