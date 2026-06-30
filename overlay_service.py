@@ -119,6 +119,6 @@ async def overlay(image: UploadFile = File(...), text: str = Form(...)):
     return StreamingResponse(buf, media_type="image/png")
 
 
-@app.get("/health")
+@app.api_route("/health", methods=["GET", "HEAD"])
 def health():
     return {"status": "ok"}
