@@ -26,7 +26,7 @@ FONT_PATH = "DejaVuSans-Bold.ttf"  # bundle this font file alongside the script 
 # Sized relative to the image so it looks right at any resolution.
 FONT_SIZE_RATIO = 0.055       # font size = 5.5% of image width
 LINE_GAP_RATIO = 0.018        # gap between wrapped lines
-BOTTOM_MARGIN_RATIO = 0.12    # keep clear of bottom 12% (avoids logos/CTAs/pills)
+BOTTOM_MARGIN_RATIO = 0.20    # keep clear of bottom 20% (avoids logos/CTAs/pills)
 SIDE_MARGIN_RATIO = 0.08      # horizontal safe margin on each side
 BACKDROP_PADDING_RATIO = 0.025
 
