@@ -7,23 +7,22 @@ POST /overlay
 Form fields:
   image : binary file (the photo from Google Drive)
   text  : string (the ChatGPT-generated caption)
-
 Response: PNG image bytes (binary)
 """
 
 import io
-
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from PIL import Image, ImageDraw, ImageFont
 
 app = FastAPI()
 
-FONT_PATH        = "DejaVuSans-Bold.ttf"
-TEXT_COLOR       = (15, 40, 90)   # dark navy
-FONT_SIZE_RATIO  = 0.068
-LINE_GAP_RATIO   = 0.025
+FONT_PATH         = "DejaVuSans-Bold.ttf"
+TEXT_COLOR        = (15, 40, 90)   # dark navy
+FONT_SIZE_RATIO   = 0.068
+LINE_GAP_RATIO    = 0.025
 SIDE_MARGIN_RATIO = 0.10
+
 # Text block lives between 35% and 72% of image height
 # — below the logo zone, above the bottom pill/CTA zone
 TOP_ZONE    = 0.35
@@ -65,12 +64,14 @@ def overlay_text(img: Image.Image, text: str) -> Image.Image:
     if current:
         lines.append(current)
 
-    # Measure lines
-    line_heights, line_widths = [], []
+    # Measure lines — capture left/top bearing offsets so we can
+    # center the VISIBLE glyph box, not PIL's raw anchor point
+    line_heights, line_widths, line_offsets = [], [], []
     for line in lines:
         bbox = draw.textbbox((0, 0), line, font=font)
         line_widths.append(bbox[2] - bbox[0])
         line_heights.append(bbox[3] - bbox[1])
+        line_offsets.append((bbox[0], bbox[1]))  # (left_bearing, top_bearing)
 
     total_h = sum(line_heights) + (len(lines) - 1) * line_gap
 
@@ -82,8 +83,9 @@ def overlay_text(img: Image.Image, text: str) -> Image.Image:
 
     # Draw dark navy text — no outline, no backdrop
     for i, line in enumerate(lines):
-        x = (w - line_widths[i]) / 2
-        draw.text((x, y), line, font=font, fill=TEXT_COLOR)
+        off_x, off_y = line_offsets[i]
+        x = (w - line_widths[i]) / 2 - off_x
+        draw.text((x, y - off_y), line, font=font, fill=TEXT_COLOR)
         y += line_heights[i] + line_gap
 
     return img
