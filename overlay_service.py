@@ -21,12 +21,16 @@ FONT_PATH         = "DejaVuSans-Bold.ttf"
 TEXT_COLOR        = (15, 40, 90)   # dark navy
 FONT_SIZE_RATIO   = 0.068
 LINE_GAP_RATIO    = 0.025
-SIDE_MARGIN_RATIO = 0.10
 
-# Text block lives between 35% and 72% of image height
-# — below the logo zone, above the bottom pill/CTA zone
-TOP_ZONE    = 0.35
-BOTTOM_ZONE = 0.72
+# MY SNW template has an angled/hex safe-zone (narrower at top and bottom
+# than the full canvas width) — wider side margin keeps wrapped lines off
+# the diagonal red/gold borders regardless of exact line count.
+SIDE_MARGIN_RATIO = 0.16
+
+# Text block lives between 38% and 68% of image height — this is the band
+# where the white hex panel is at (or near) full width in this template.
+TOP_ZONE    = 0.38
+BOTTOM_ZONE = 0.68
 
 
 def overlay_text(img: Image.Image, text: str) -> Image.Image:
@@ -81,7 +85,9 @@ def overlay_text(img: Image.Image, text: str) -> Image.Image:
     zone_h      = zone_bottom - zone_top
     y = zone_top + (zone_h - total_h) / 2
 
-    # Draw dark navy text — no outline, no backdrop
+    # Draw dark navy text, each line centered on canvas width (w),
+    # correcting for glyph bearing so the visible text — not the
+    # font's internal anchor box — sits on the true center line
     for i, line in enumerate(lines):
         off_x, off_y = line_offsets[i]
         x = (w - line_widths[i]) / 2 - off_x
