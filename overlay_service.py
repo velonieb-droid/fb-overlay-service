@@ -29,8 +29,8 @@ SIDE_MARGIN_RATIO = 0.16
 
 # Text block lives between 38% and 68% of image height — this is the band
 # where the white hex panel is at (or near) full width in this template.
-TOP_ZONE    = 0.38
-BOTTOM_ZONE = 0.68
+TOP_ZONE    = 0.30
+BOTTOM_ZONE = 0.60
 
 
 def overlay_text(img: Image.Image, text: str) -> Image.Image:
